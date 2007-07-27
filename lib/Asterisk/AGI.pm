@@ -6,8 +6,10 @@ use strict;
 use warnings;
 use Asterisk;
 
-use vars qw(@ISA);
+use vars qw(@ISA $VERSION);
 @ISA = ( 'Asterisk' );
+
+$VERSION = $Asterisk::VERSION;
 
 =head1 NAME
 
@@ -116,11 +118,6 @@ sub callback {
 sub execute {
 	my ($self, $command) = @_;
 
-	# Check if ReadParse has been run already.  If not do it now
-	# to save end user confusion
-	if (!$self->_env) {
-		$self->ReadParse();
-	}
 	$self->_execcommand($command);
 	my $res = $self->_readresponse();
 	my $ret = $self->_checkresult($res);
@@ -152,9 +149,21 @@ sub _readresponse {
 
 	my $response = undef;
 	$fh = \*STDIN if (!$fh);
-	$response = <$fh> || return '200 result=-1 (noresponse)';
-	chomp($response);
-	return $response;
+	while ($response = <$fh>) {
+		chomp($response);
+		if (!defined($response)) {
+			return '200 result=-1 (noresponse)';
+		} elsif ($response =~ /^agi_(\w+)\:\s+(.*)$/) {
+			# I really hate duplicating code, but if anyone has a way to be backwards compatible and keep everyone happy please let me know!
+			if ($self->_debug > 0) {
+				print STDERR "AGI Environment Dump:\n" if (!$self->_env);
+				print STDERR " -- $1 = $2\n";
+			}
+			$self->_addenv($1, $2);
+		} else {
+			return($response);
+		}
+	}
 }
 
 sub _checkresult {
@@ -171,9 +180,9 @@ sub _checkresult {
 	} elsif ($response =~ /\(noresponse\)/) {
 		$self->_status('noresponse');
 	} else {
-		print STDERR "Unexpected result '" . defined($response) ? $response : '' . "'\n" if ($self->_debug>0);
+		print STDERR "Unexpected result '" . (defined($response) ? $response : '') . "'\n" if ($self->_debug>0);
 	}
-	print STDERR "_checkresult(" . defined($response) ? $response : '' . ") = " . defined($result) ? $result : '' . "\n" if ($self->_debug>3);
+	print STDERR "_checkresult(" . (defined($response) ? $response : '') . ") = " . (defined($result) ? $result : '') . "\n" if ($self->_debug>3);
 
 	return $result;				
 }
@@ -228,6 +237,12 @@ sub _debug {
 	}
 }
 
+sub _addenv {
+	my ($self, $var, $value) = @_;
+
+	$self->{'env'}->{$var} = $value;
+}
+
 sub _env {
 	my ($self, %env) = @_;
 
@@ -236,6 +251,20 @@ sub _env {
 	} else {
 		return $self->{'env'};
 	}
+}
+
+sub _recurse {
+	my ($self, $s2, $files, @args) = @_;
+
+	my $sub = (caller(1))[3];
+	my $ret = undef;
+
+	foreach my $fn (@$files) {
+		if (!$ret) {
+			$ret = $self->$sub($fn, @args);
+		}
+	}
+	return $ret;
 }
 
 =head1 AGI COMMANDS
@@ -393,7 +422,7 @@ sub database_put {
 
 =item $AGI->exec($app, $options)
 
-Executes AGI Command "EXEC $app $options"
+Executes AGI Command "EXEC $app "$options""
 
 The most powerful AGI command.  Executes the given application passing the given options.
 
@@ -407,7 +436,14 @@ whatever the given application returns
 sub exec {
 	my ($self, $app, $options) = @_;
 	return -1 if (!defined($app));
-	$options = '""' if (!defined($options));
+	if (!defined($options)) {
+		$options = '""';
+	} elsif ($options =~ /^\".*\"$/) {
+		# Do nothing
+	} else {
+		$options = '"' . $options . '"';
+	}
+
 	return $self->execute("EXEC $app $options");
 }
 
@@ -467,19 +503,27 @@ Behaves similar to STREAM FILE but used with a timeout option.
 
 Streams $filename and returns when $digits is pressed or when $timeout has been
 reached.  Timeout is specified in ms.  If $timeout is not specified, the command
-will only terminate on the $digits set.
+will only terminate on the $digits set.  $filename can be an array of files
+or a single filename.
 
 Example: $AGI->get_option('demo-welcome', '#', 15000);
+	 $AGI->get_option(['demo-welcome', 'demo-echotest'], '#', 15000);
 
 =cut
 
 sub get_option {
 	my ($self, $filename, $digits, $timeout) = @_;
+	my $ret = undef;
 
 	$timeout = 0 if (!defined($timeout)); 
-
 	return -1 if (!defined($filename));
-	return $self->execute("GET OPTION $filename $digits $timeout");
+
+	if (ref($filename) eq "ARRAY") {
+		$ret = $self->_recurse(@_);
+	} else {
+		$ret = $self->execute("GET OPTION $filename $digits $timeout");
+	}
+	return $ret;
 }
 
 =item $AGI->get_variable($variable)
@@ -545,9 +589,9 @@ Returns: -1 on hangup or error, 0 otherwise
 =cut
 
 sub noop {
-	my ($self) = @_;
+	my ($self, $string) = @_;
 
-	return $self->execute("NOOP");
+	return $self->execute("NOOP $string");
 }
 
 =item $AGI->receive_char($timeout)
@@ -750,9 +794,9 @@ sub say_digits {
 	return $self->execute("SAY DIGITS $number $digits");
 }
 
-=item $AGI->say_number($number, $digits)
+=item $AGI->say_number($number, $digits, $gender)
 
-Executes AGI Command "SAY NUMBER $number $digits"
+Executes AGI Command "SAY NUMBER $number $digits [$gender]"
 
 Says the given $number, returning early if any of the $digits are received.
 
@@ -765,13 +809,13 @@ or the ASCII numerical value of the digit of one was pressed.
 =cut
 
 sub say_number {
-	my ($self, $number, $digits) = @_;
+	my ($self, $number, $digits, $gender) = @_;
 
 	$digits = '""' if (!defined($digits));
 
 	return -1 if (!defined($number));
 	$number =~ s/\D//g;
-	return $self->execute("SAY NUMBER $number $digits");
+	return $self->execute("SAY NUMBER $number $digits $gender");
 }
 
 =item $AGI->say_phonetic($string, $digits)
@@ -974,15 +1018,16 @@ sub set_variable {
 	return $self->execute("SET VARIABLE $variable \"$value\"");
 }
 
-=item $AGI->stream_file($filename, $digits)
+=item $AGI->stream_file($filename, $digits, $offset)
 
-Executes AGI Command "STREAM FILE $filename $digits"
+Executes AGI Command "STREAM FILE $filename $digits [$offset]"
 
 This command instructs Asterisk to play the given sound file and listen for the given dtmf digits. The
 fileextension must not be used in the filename because Asterisk will find the most appropriate file
-type.
+type.  $filename can be an array of files or a single filename.
 
 Example: $AGI->stream_file('demo-echotest', '0123');
+	 $AGI->stream_file(['demo-echotest', 'demo-welcome'], '0123');
 
 Returns: -1 on error or hangup,
 0 if playback completes without a digit being pressed,
@@ -991,12 +1036,20 @@ or the ASCII numerical value of the digit if a digit was pressed
 =cut
 
 sub stream_file {
-	my ($self, $filename, $digits) = @_;
+	my ($self, $filename, $digits, $offset) = @_;
 
+	my $ret = undef;
 	$digits = '""' if (!defined($digits));
 
 	return -1 if (!defined($filename));
-	return $self->execute("STREAM FILE $filename $digits");
+
+	if (ref($filename) eq "ARRAY") {
+		$ret = $self->_recurse(@_);
+	} else {
+		$ret = $self->execute("STREAM FILE $filename $digits $offset");
+	}
+
+	return $ret;
 }
 
 =item $AGI->tdd_mode($mode)

@@ -1,3 +1,12 @@
+0.10	Seriously this is a test release, and if all is well next version will be 1.0.
+	Allow AGI commands get_option and stream_file to accept an array of files in addition to a single file (inspired by Michael Komitee)
+	Add gender paramater to AGI SAY NUMBER (only in asterisk trunk)
+	Fix operator precedence login in debugging output of AGI (Thanks Matt Reilly)
+	Adjust the way we handle ReadParse so it will work if the user handles those reads themself
+	Quote options that are passed to exec and export $VERSION in AGI (Thanks Peter Beckman)
+	Allow offset to be passed to stream_file in AGI (Thanks jfields via CPAN)
+	Fix behavior of noop in AGI.pm (Thanks Dmitry Ivanov for pointing this out)
+
 0.09	Test release.  Will go to 1.0 shortly after testing
 	Change AGI.pm so we run ReadParse if the user forgot to run it manually
 	Add LICENSE file to source

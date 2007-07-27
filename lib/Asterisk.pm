@@ -1,11 +1,13 @@
 #
-# $Id: Asterisk.pm,v 1.12 2006/09/25 08:42:54 james Exp $
+# $Id: Asterisk.pm,v 1.14 2007/07/27 18:08:40 james Exp $
 #
 package Asterisk;
 
 require 5.004;
 
-$VERSION = '0.09';
+use vars qw($VERSION);
+
+$VERSION = '0.10';
 
 sub version { $VERSION; }
 
