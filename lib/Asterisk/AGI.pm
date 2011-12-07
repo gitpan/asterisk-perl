@@ -161,8 +161,8 @@ sub _readresponse {
 				print STDERR " -- $1 = $2\n";
 			}
 			$self->_addenv($1, $2);
-		} elsif ($readvars && $response eq '') {
-			print STDERR "Skipping blank response because we just read vars\n" if ($self->_debug > 0);
+		} elsif (($readvars && ($response eq '')) || ($response eq 'HANGUP')) {
+			print STDERR "Skipping blank response or HANGUP because we just read vars\n" if ($self->_debug > 0);
 			$readvars = 0;
 		} elsif ($response) {
 			return($response);
@@ -170,6 +170,7 @@ sub _readresponse {
 			print STDERR "AGI Received unknown response: '$response'\n" if ($self->_debug > 0);
 		}
 	}
+	return '200 result=-1 (noresponse)';
 }
 
 sub _checkresult {
@@ -273,7 +274,11 @@ sub _recurse {
 	return $ret;
 }
 
+=back
+
 =head1 AGI COMMANDS
+
+=over 4
 
 =item $AGI->answer()
 
@@ -682,7 +687,7 @@ sub record_file {
 
 =item $AGI->say_alpha($string, $digits)
 
-Executes AGI Command "SAY ALPHA $string $digits"
+Executes AGI Command "SAY ALPHA "$string" $digits"
 
 Say a given character string, returning early if any of the given DTMF $digits
 are received on the channel. 
@@ -702,7 +707,7 @@ sub say_alpha {
 	$digits = '""' if (!defined($digits));
 
 	return -1 if (!defined($string));
-	return $self->execute("SAY ALPHA $string $digits");
+	return $self->execute("SAY ALPHA \"$string\" $digits");
 }
 
 =item $AGI->say_date($time [, $digits])
@@ -826,7 +831,7 @@ sub say_number {
 
 =item $AGI->say_phonetic($string, $digits)
 
-Executes AGI Command "SAY PHONETIC $string $digits"
+Executes AGI Command "SAY PHONETIC "$string" $digits"
 
 Say a given character string with phonetics, returning early if any of the
 given DTMF digits are received on the channel.
@@ -845,7 +850,7 @@ sub say_phonetic {
 	$digits = '""' if (!defined($digits));
 
 	return -1 if (!defined($string));
-	return $self->execute("SAY PHONETIC $string $digits");
+	return $self->execute("SAY PHONETIC \"$string\" $digits");
 }
 
 =item $AGI->send_image($image)
@@ -1083,7 +1088,7 @@ Executes AGI Command "VERBOSE $message $level"
 
 Logs $message with verboselevel $level
 
-Example: $AGI->verbose("System Crashed\n", 1);
+Example: $AGI->verbose("System Crashed", 1);
 
 Returns: Always returns 1
 
