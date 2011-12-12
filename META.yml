@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               asterisk-perl
-version:            1.02
+version:            1.03
 abstract:           Asterisk Perl Interface
 author:
     - James Golovich <james@gnuinter.net>

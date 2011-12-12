@@ -349,6 +349,11 @@ sub control_stream_file {
 
 	return -1 if (!defined($filename));
 	$digits = '""' if (!defined($digits));
+	$skipms = '' if (!defined($skipms));
+	$ffchar = '' if (!defined($ffchar));
+	$rewchar = '' if (!defined($rewchar));
+	$pausechar = '' if (!defined($pausechar));
+
 	return $self->execute("CONTROL STREAM FILE $filename $digits $skipms $ffchar $rewchar $pausechar");
 }
 
@@ -747,8 +752,10 @@ sub say_datetime_all {
 	my ($self, $type, $time, $digits, $format, $timezone) = @_;
 
 	my $ret = 0;
-	$digits = '""' if (!defined($digits));
 	return -1 if (!defined($time));
+	$digits = '""' if (!defined($digits));
+	$format = '' if (!defined($format));
+	$timezone = '' if (!defined($timezone));
 
 	if ($type eq 'date') {
 		$ret = $self->execute("SAY DATE $time $digits");
@@ -823,6 +830,7 @@ sub say_number {
 	my ($self, $number, $digits, $gender) = @_;
 
 	$digits = '""' if (!defined($digits));
+	$gender = '' if (!defined($gender));
 
 	return -1 if (!defined($number));
 	$number =~ s/\D//g;
@@ -989,6 +997,9 @@ Returns: -1 on hangup or error, 0 otherwise.
 sub set_music {
 	my ($self, $mode, $class) = @_;
 
+	$mode = '' if (!defined($mode));
+	$class = '' if (!defined($class));
+
 	return $self->execute("SET MUSIC $mode $class");
 }
 
@@ -1049,10 +1060,10 @@ or the ASCII numerical value of the digit if a digit was pressed
 sub stream_file {
 	my ($self, $filename, $digits, $offset) = @_;
 
+	return -1 if (!defined($filename));
 	my $ret = undef;
 	$digits = '""' if (!defined($digits));
-
-	return -1 if (!defined($filename));
+	$offset = '' if (!defined($offset));
 
 	if (ref($filename) eq "ARRAY") {
 		$ret = $self->_recurse(@_);
